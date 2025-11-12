@@ -27,26 +27,19 @@ function PDFUploader({ onPDFLoaded }) {
       setProgress(30)
       console.log('Файл загружен в память')
 
-      // Используем PDF.js из CDN через fetch
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+      // Загружаем PDF.js библиотеку
+      const pdfScript = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.0/pdf.min.js')
+      const pdfCode = await pdfScript.text()
       
-      await new Promise((resolve, reject) => {
-        script.onload = resolve
-        script.onerror = reject
-        document.head.appendChild(script)
-      })
-
+      // Выполняем код в контексте окна
+      eval(pdfCode)
+      
       setProgress(50)
+      console.log('PDF.js загружена')
 
-      // Устанавливаем worker
-      if (window.pdfjsWorker === undefined) {
-        window.pdfjsWorker = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js').then(r => r.text())
-      }
-      
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-
-      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      // Используем встроенный парсер
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const pdf = await window.pdfjsLib.getDocument({ data: uint8Array }).promise
       setProgress(60)
       console.log('PDF распознан, страниц:', pdf.numPages)
 
