@@ -16,26 +16,49 @@ function PDFUploader({ onPDFLoaded }) {
       setError('')
       setProgress(0)
 
+      // Проверка размера файла
+      const fileSizeMB = file.size / (1024 * 1024)
+      if (fileSizeMB > 50) {
+        setError(`Файл слишком большой (${fileSizeMB.toFixed(1)} МБ). Максимум 50 МБ.`)
+        setLoading(false)
+        return
+      }
+
+      console.log('Начинаю загрузку файла:', file.name, `(${fileSizeMB.toFixed(1)} МБ)`)
+
       const arrayBuffer = await file.arrayBuffer()
-      setProgress(20)
+      setProgress(25)
+      console.log('Файл загружен в память')
 
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       setProgress(40)
+      console.log('PDF распознан, страниц:', pdf.numPages)
 
       let fullText = ''
       const totalPages = pdf.numPages
 
       for (let i = 1; i <= totalPages; i++) {
-        const page = await pdf.getPage(i)
-        const textContent = await page.getTextContent()
-        const pageText = textContent.items.map(item => item.str).join(' ')
-        fullText += pageText + ' '
-        
-        // Обновляем прогресс по мере обработки страниц
-        const pageProgress = 40 + (i / totalPages) * 50
-        setProgress(Math.round(pageProgress))
+        try {
+          const page = await pdf.getPage(i)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items.map(item => item.str).join(' ')
+          fullText += pageText + ' '
+          
+          // Обновляем прогресс по мере обработки страниц
+          const pageProgress = 40 + (i / totalPages) * 50
+          setProgress(Math.round(pageProgress))
+          
+          // Логируем каждые 10 страниц
+          if (i % 10 === 0) {
+            console.log(`Обработано ${i}/${totalPages} страниц`)
+          }
+        } catch (pageErr) {
+          console.warn(`Ошибка на странице ${i}:`, pageErr)
+          // Продолжаем со следующей страницы
+        }
       }
 
+      console.log('Все страницы обработаны, начинаю очистку текста')
       setProgress(95)
 
       // Split into words and clean
@@ -45,10 +68,12 @@ function PDFUploader({ onPDFLoaded }) {
         .map(word => word.replace(/[^\w\s\-]/g, ''))
         .filter(word => word.length > 0)
 
+      console.log('Готово! Всего слов:', words.length)
       setProgress(100)
       onPDFLoaded(words, file.name)
       setLoading(false)
     } catch (err) {
+      console.error('Ошибка при загрузке PDF:', err)
       setError('Ошибка при загрузке PDF: ' + err.message)
       setLoading(false)
       setProgress(0)
