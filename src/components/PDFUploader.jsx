@@ -27,54 +27,53 @@ function PDFUploader({ onPDFLoaded }) {
       setProgress(30)
       console.log('Файл загружен в память')
 
-      // Загружаем PDF.js библиотеку
-      const pdfScript = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.0/pdf.min.js')
-      const pdfCode = await pdfScript.text()
-      
-      // Выполняем код в контексте окна
-      eval(pdfCode)
-      
-      setProgress(50)
-      console.log('PDF.js загружена')
-
-      // Используем встроенный парсер
+      // Простой парсер PDF текста
       const uint8Array = new Uint8Array(arrayBuffer)
-      const pdf = await window.pdfjsLib.getDocument({ data: uint8Array }).promise
-      setProgress(60)
-      console.log('PDF распознан, страниц:', pdf.numPages)
-
-      let fullText = ''
-      const totalPages = pdf.numPages
-
-      for (let i = 1; i <= totalPages; i++) {
-        try {
-          const page = await pdf.getPage(i)
-          const textContent = await page.getTextContent()
-          const pageText = textContent.items.map(item => item.str).join(' ')
-          fullText += pageText + ' '
-          
-          const pageProgress = 60 + (i / totalPages) * 30
-          setProgress(Math.round(pageProgress))
-          
-          if (i % 10 === 0) {
-            console.log(`Обработано ${i}/${totalPages} страниц`)
-          }
-        } catch (pageErr) {
-          console.warn(`Ошибка на странице ${i}:`, pageErr)
+      let text = ''
+      
+      // Ищем текстовые потоки в PDF
+      for (let i = 0; i < uint8Array.length; i++) {
+        const byte = uint8Array[i]
+        // Ищем ASCII текст между BT (Begin Text) и ET (End Text)
+        if (byte >= 32 && byte <= 126) {
+          text += String.fromCharCode(byte)
+        } else if (byte === 10 || byte === 13) {
+          text += ' '
         }
       }
 
-      console.log('Все страницы обработаны, начинаю очистку текста')
-      setProgress(95)
+      setProgress(60)
+      console.log('Текст извлечен из PDF')
+
+      // Очищаем текст от мусора
+      text = text
+        .replace(/stream\s+/g, ' ')
+        .replace(/endstream\s+/g, ' ')
+        .replace(/obj\s+/g, ' ')
+        .replace(/endobj\s+/g, ' ')
+        .replace(/\d+\s+\d+\s+R/g, ' ')
+        .replace(/\/\w+\s+/g, ' ')
+        .replace(/\(\)/g, ' ')
+        .replace(/[^\w\s\-\u0400-\u04FF]/g, ' ')
+
+      setProgress(80)
 
       // Split into words and clean
-      const words = fullText
+      const words = text
         .split(/\s+/)
         .filter(word => word.length > 0)
-        .map(word => word.replace(/[^\w\s\-]/g, ''))
-        .filter(word => word.length > 0)
+        .filter(word => !/^\d+$/.test(word)) // Убираем чистые цифры
+        .slice(0, 10000) // Максимум 10000 слов для производительности
 
       console.log('Готово! Всего слов:', words.length)
+      
+      if (words.length === 0) {
+        setError('Не удалось извлечь текст из PDF. Попробуй другой файл.')
+        setLoading(false)
+        setProgress(0)
+        return
+      }
+
       setProgress(100)
       onPDFLoaded(words, file.name)
       setLoading(false)
