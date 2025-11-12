@@ -1,9 +1,5 @@
 import React, { useRef } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
 import './PDFUploader.css'
-
-// Используем версию 4.0.379 (как в package.json)
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js'
 
 function PDFUploader({ onPDFLoaded }) {
   const fileInputRef = useRef(null)
@@ -28,11 +24,30 @@ function PDFUploader({ onPDFLoaded }) {
       console.log('Начинаю загрузку файла:', file.name, `(${fileSizeMB.toFixed(1)} МБ)`)
 
       const arrayBuffer = await file.arrayBuffer()
-      setProgress(25)
+      setProgress(30)
       console.log('Файл загружен в память')
 
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-      setProgress(40)
+      // Используем PDF.js из CDN через fetch
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+      
+      await new Promise((resolve, reject) => {
+        script.onload = resolve
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+
+      setProgress(50)
+
+      // Устанавливаем worker
+      if (window.pdfjsWorker === undefined) {
+        window.pdfjsWorker = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js').then(r => r.text())
+      }
+      
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      setProgress(60)
       console.log('PDF распознан, страниц:', pdf.numPages)
 
       let fullText = ''
@@ -45,17 +60,14 @@ function PDFUploader({ onPDFLoaded }) {
           const pageText = textContent.items.map(item => item.str).join(' ')
           fullText += pageText + ' '
           
-          // Обновляем прогресс по мере обработки страниц
-          const pageProgress = 40 + (i / totalPages) * 50
+          const pageProgress = 60 + (i / totalPages) * 30
           setProgress(Math.round(pageProgress))
           
-          // Логируем каждые 10 страниц
           if (i % 10 === 0) {
             console.log(`Обработано ${i}/${totalPages} страниц`)
           }
         } catch (pageErr) {
           console.warn(`Ошибка на странице ${i}:`, pageErr)
-          // Продолжаем со следующей страницы
         }
       }
 
