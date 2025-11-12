@@ -1,6 +1,25 @@
 import React, { useRef } from 'react'
 import './PDFUploader.css'
 
+// Загружаем PDF.js один раз
+let pdfjsLib = null
+
+const loadPDFJS = async () => {
+  if (pdfjsLib) return pdfjsLib
+  
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
+    script.onload = () => {
+      pdfjsLib = window.pdfjsLib
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'
+      resolve(pdfjsLib)
+    }
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
 function PDFUploader({ onPDFLoaded }) {
   const fileInputRef = useRef(null)
   const [loading, setLoading] = React.useState(false)
@@ -24,44 +43,52 @@ function PDFUploader({ onPDFLoaded }) {
       console.log('Начинаю загрузку файла:', file.name, `(${fileSizeMB.toFixed(1)} МБ)`)
 
       const arrayBuffer = await file.arrayBuffer()
-      setProgress(30)
+      setProgress(20)
       console.log('Файл загружен в память')
 
-      // Простой парсер PDF текста
-      const uint8Array = new Uint8Array(arrayBuffer)
-      const decoder = new TextDecoder('utf-8', { fatal: false })
-      let fullText = decoder.decode(uint8Array)
+      // Загружаем PDF.js
+      const pdf = await loadPDFJS()
+      setProgress(40)
+      console.log('PDF.js загружена')
 
+      // Парсим PDF
+      const pdfDoc = await pdf.getDocument({ data: arrayBuffer }).promise
       setProgress(50)
+      console.log('PDF распознан, страниц:', pdfDoc.numPages)
 
-      // Удаляем PDF служебные данные
-      fullText = fullText
-        .replace(/stream[\s\S]*?endstream/g, ' ')
-        .replace(/obj[\s\S]*?endobj/g, ' ')
-        .replace(/xref[\s\S]*?trailer/g, ' ')
-        .replace(/<<[\s\S]*?>>/g, ' ')
-        .replace(/\/\w+/g, ' ')
-        .replace(/\(\)/g, ' ')
-        .replace(/\[\]/g, ' ')
+      let fullText = ''
+      const totalPages = pdfDoc.numPages
 
-      setProgress(65)
+      for (let i = 1; i <= totalPages; i++) {
+        try {
+          const page = await pdfDoc.getPage(i)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items
+            .map(item => item.str)
+            .join(' ')
+          fullText += pageText + ' '
+          
+          const pageProgress = 50 + (i / totalPages) * 40
+          setProgress(Math.round(pageProgress))
+          
+          if (i % 5 === 0) {
+            console.log(`Обработано ${i}/${totalPages} страниц`)
+          }
+        } catch (pageErr) {
+          console.warn(`Ошибка на странице ${i}:`, pageErr)
+        }
+      }
 
-      // Оставляем только буквы, цифры, пробелы и пунктуацию
-      fullText = fullText
-        .replace(/[^\w\s\-.,!?;:\u0400-\u04FF]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
+      setProgress(95)
+      console.log('Все страницы обработаны')
 
-      setProgress(80)
-
-      // Split into words and clean
+      // Очищаем текст
       const words = fullText
-        .split(/[\s\-.,!?;:]+/)
-        .filter(word => word.length > 1) // Минимум 2 символа
-        .filter(word => !/^\d+$/.test(word)) // Убираем чистые цифры
-        .filter(word => !/^[a-zA-Z]$/.test(word)) // Убираем одиночные буквы
-        .filter(word => word.length < 50) // Убираем очень длинные слова (мусор)
-        .slice(0, 10000) // Максимум 10000 слов для производительности
+        .split(/[\s\-.,!?;:«»„"()[\]{}]+/)
+        .filter(word => word.length > 1)
+        .filter(word => !/^\d+$/.test(word))
+        .filter(word => word.match(/[а-яА-ЯёЁa-zA-Z]/))
+        .slice(0, 10000)
 
       console.log('Готово! Всего слов:', words.length)
       
