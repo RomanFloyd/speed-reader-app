@@ -29,40 +29,38 @@ function PDFUploader({ onPDFLoaded }) {
 
       // Простой парсер PDF текста
       const uint8Array = new Uint8Array(arrayBuffer)
-      let text = ''
-      
-      // Ищем текстовые потоки в PDF
-      for (let i = 0; i < uint8Array.length; i++) {
-        const byte = uint8Array[i]
-        // Ищем ASCII текст между BT (Begin Text) и ET (End Text)
-        if (byte >= 32 && byte <= 126) {
-          text += String.fromCharCode(byte)
-        } else if (byte === 10 || byte === 13) {
-          text += ' '
-        }
-      }
+      const decoder = new TextDecoder('utf-8', { fatal: false })
+      let fullText = decoder.decode(uint8Array)
 
-      setProgress(60)
-      console.log('Текст извлечен из PDF')
+      setProgress(50)
 
-      // Очищаем текст от мусора
-      text = text
-        .replace(/stream\s+/g, ' ')
-        .replace(/endstream\s+/g, ' ')
-        .replace(/obj\s+/g, ' ')
-        .replace(/endobj\s+/g, ' ')
-        .replace(/\d+\s+\d+\s+R/g, ' ')
-        .replace(/\/\w+\s+/g, ' ')
+      // Удаляем PDF служебные данные
+      fullText = fullText
+        .replace(/stream[\s\S]*?endstream/g, ' ')
+        .replace(/obj[\s\S]*?endobj/g, ' ')
+        .replace(/xref[\s\S]*?trailer/g, ' ')
+        .replace(/<<[\s\S]*?>>/g, ' ')
+        .replace(/\/\w+/g, ' ')
         .replace(/\(\)/g, ' ')
-        .replace(/[^\w\s\-\u0400-\u04FF]/g, ' ')
+        .replace(/\[\]/g, ' ')
+
+      setProgress(65)
+
+      // Оставляем только буквы, цифры, пробелы и пунктуацию
+      fullText = fullText
+        .replace(/[^\w\s\-.,!?;:\u0400-\u04FF]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
 
       setProgress(80)
 
       // Split into words and clean
-      const words = text
-        .split(/\s+/)
-        .filter(word => word.length > 0)
+      const words = fullText
+        .split(/[\s\-.,!?;:]+/)
+        .filter(word => word.length > 1) // Минимум 2 символа
         .filter(word => !/^\d+$/.test(word)) // Убираем чистые цифры
+        .filter(word => !/^[a-zA-Z]$/.test(word)) // Убираем одиночные буквы
+        .filter(word => word.length < 50) // Убираем очень длинные слова (мусор)
         .slice(0, 10000) // Максимум 10000 слов для производительности
 
       console.log('Готово! Всего слов:', words.length)
