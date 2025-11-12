@@ -1,9 +1,9 @@
 import React, { useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFUploader.css'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
+// Используем версию 4.0.379 (как в package.json)
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js'
 
 function PDFUploader({ onPDFLoaded }) {
   const fileInputRef = useRef(null)
