@@ -55,6 +55,35 @@
   cursor: not-allowed;
 }
 
+.progress-container {
+  margin-top: 20px;
+  animation: slideUp 0.3s ease-out;
+}
+
+.progress-bar-upload {
+  width: 100%;
+  height: 8px;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+}
+
+.progress-text {
+  text-align: center;
+  color: #667eea;
+  font-size: 0.9rem;
+  margin-top: 10px;
+  font-weight: 600;
+}
+
 .error-message {
   background-color: #fee;
   color: #c33;
@@ -81,6 +110,17 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

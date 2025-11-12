@@ -8,23 +8,35 @@ function PDFUploader({ onPDFLoaded }) {
   const fileInputRef = useRef(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+  const [progress, setProgress] = React.useState(0)
 
   const extractTextFromPDF = async (file) => {
     try {
       setLoading(true)
       setError('')
+      setProgress(0)
 
       const arrayBuffer = await file.arrayBuffer()
+      setProgress(20)
+
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      setProgress(40)
 
       let fullText = ''
+      const totalPages = pdf.numPages
 
-      for (let i = 1; i <= pdf.numPages; i++) {
+      for (let i = 1; i <= totalPages; i++) {
         const page = await pdf.getPage(i)
         const textContent = await page.getTextContent()
         const pageText = textContent.items.map(item => item.str).join(' ')
         fullText += pageText + ' '
+        
+        // Обновляем прогресс по мере обработки страниц
+        const pageProgress = 40 + (i / totalPages) * 50
+        setProgress(Math.round(pageProgress))
       }
+
+      setProgress(95)
 
       // Split into words and clean
       const words = fullText
@@ -33,11 +45,13 @@ function PDFUploader({ onPDFLoaded }) {
         .map(word => word.replace(/[^\w\s\-]/g, ''))
         .filter(word => word.length > 0)
 
+      setProgress(100)
       onPDFLoaded(words, file.name)
       setLoading(false)
     } catch (err) {
       setError('Ошибка при загрузке PDF: ' + err.message)
       setLoading(false)
+      setProgress(0)
     }
   }
 
@@ -66,8 +80,20 @@ function PDFUploader({ onPDFLoaded }) {
           onClick={handleClick}
           disabled={loading}
         >
-          {loading ? 'Загружаю...' : '+ Выбрать файл'}
+          {loading ? `Загружаю... ${progress}%` : '+ Выбрать файл'}
         </button>
+
+        {loading && (
+          <div className="progress-container">
+            <div className="progress-bar-upload">
+              <div 
+                className="progress-fill" 
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+            <p className="progress-text">{progress}% готово</p>
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
